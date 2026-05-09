@@ -32,7 +32,7 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-const JWT_SECRET = process.env.JWT_SECRET || 'realmscape-secret-2024';
+const JWT_SECRET = process.env.JWT_SECRET || 'realmscape_jwt_secret_key_2024_secure';
 const PORT = process.env.PORT || 3001;
 const TICK_RATE = 600; // ms per game tick
 
