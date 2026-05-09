@@ -27,6 +27,29 @@ async function initTables(client) {
       updated_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  
+  // Add missing columns to existing table (idempotent)
+  try {
+    await client.query('ALTER TABLE characters ADD COLUMN xp JSONB DEFAULT \'{}\'');
+  } catch (e) { if (!e.message.includes('already exists')) throw e; }
+  try {
+    await client.query('ALTER TABLE characters ADD COLUMN inventory JSONB DEFAULT \'[]\'');
+  } catch (e) { if (!e.message.includes('already exists')) throw e; }
+  try {
+    await client.query('ALTER TABLE characters ADD COLUMN equipment JSONB DEFAULT \'{}\'');
+  } catch (e) { if (!e.message.includes('already exists')) throw e; }
+  try {
+    await client.query('ALTER TABLE characters ADD COLUMN pos_x INTEGER DEFAULT 32');
+  } catch (e) { if (!e.message.includes('already exists')) throw e; }
+  try {
+    await client.query('ALTER TABLE characters ADD COLUMN pos_y INTEGER DEFAULT 32');
+  } catch (e) { if (!e.message.includes('already exists')) throw e; }
+  try {
+    await client.query('ALTER TABLE characters ADD COLUMN hp INTEGER DEFAULT 10');
+  } catch (e) { if (!e.message.includes('already exists')) throw e; }
+  try {
+    await client.query('ALTER TABLE characters ADD COLUMN updated_at TIMESTAMP DEFAULT NOW()');
+  } catch (e) { if (!e.message.includes('already exists')) throw e; }
 }
 
 module.exports = async (req, res) => {

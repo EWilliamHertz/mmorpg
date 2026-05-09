@@ -158,16 +158,32 @@ async function initDB() {
       id SERIAL PRIMARY KEY,
       user_id INTEGER REFERENCES users(id) UNIQUE,
       username VARCHAR(20),
-      x INTEGER DEFAULT 30, y INTEGER DEFAULT 30,
-      hp INTEGER DEFAULT 10, max_hp INTEGER DEFAULT 10,
-      skills JSONB DEFAULT '{}',
+      pos_x INTEGER DEFAULT 30, pos_y INTEGER DEFAULT 30,
+      hp INTEGER DEFAULT 10,
+      xp JSONB DEFAULT '{}',
       inventory JSONB DEFAULT '[]',
       equipment JSONB DEFAULT '{}',
-      combat_style VARCHAR(10) DEFAULT 'balanced',
-      coins INTEGER DEFAULT 0,
       updated_at TIMESTAMP DEFAULT NOW()
     );
   `);
+  
+  // Ensure all columns exist (idempotent ALTER TABLE)
+  try {
+    await pool.query('ALTER TABLE characters ADD COLUMN xp JSONB DEFAULT \'{}\'');
+  } catch (e) { if (!e.message.includes('already exists')) throw e; }
+  try {
+    await pool.query('ALTER TABLE characters ADD COLUMN pos_x INTEGER DEFAULT 30');
+  } catch (e) { if (!e.message.includes('already exists')) throw e; }
+  try {
+    await pool.query('ALTER TABLE characters ADD COLUMN pos_y INTEGER DEFAULT 30');
+  } catch (e) { if (!e.message.includes('already exists')) throw e; }
+  try {
+    await pool.query('ALTER TABLE characters ADD COLUMN inventory JSONB DEFAULT \'[]\'');
+  } catch (e) { if (!e.message.includes('already exists')) throw e; }
+  try {
+    await pool.query('ALTER TABLE characters ADD COLUMN equipment JSONB DEFAULT \'{}\'');
+  } catch (e) { if (!e.message.includes('already exists')) throw e; }
+  
   console.log('DB ready');
 }
 
@@ -176,29 +192,28 @@ async function loadCharacter(userId, username) {
   if (r.rows.length === 0) {
     const def = defaultCharacter(username);
     await pool.query(
-      `INSERT INTO characters (user_id,username,x,y,hp,max_hp,skills,inventory,equipment,combat_style,coins)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-      [userId, username, def.x, def.y, def.hp, def.maxHp,
+      `INSERT INTO characters (user_id,username,pos_x,pos_y,hp,xp,inventory,equipment)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [userId, username, def.x, def.y, def.hp,
        JSON.stringify(def.skills), JSON.stringify(def.inventory),
-       JSON.stringify(def.equipment), def.combatStyle, def.coins]
+       JSON.stringify(def.equipment)]
     );
     return def;
   }
   const c = r.rows[0];
   return {
-    username: c.username, x: c.x, y: c.y, hp: c.hp, maxHp: c.max_hp,
-    skills: c.skills, inventory: c.inventory, equipment: c.equipment,
-    combatStyle: c.combat_style, coins: c.coins
+    username: c.username, x: c.pos_x, y: c.pos_y, hp: c.hp,
+    skills: c.xp || {}, inventory: c.inventory || [], equipment: c.equipment || {}
   };
 }
 
 async function saveCharacter(userId, char) {
   await pool.query(
-    `UPDATE characters SET x=$1,y=$2,hp=$3,max_hp=$4,skills=$5,inventory=$6,equipment=$7,combat_style=$8,coins=$9,updated_at=NOW()
-     WHERE user_id=$10`,
-    [char.x, char.y, char.hp, char.maxHp,
+    `UPDATE characters SET pos_x=$1,pos_y=$2,hp=$3,xp=$4,inventory=$5,equipment=$6,updated_at=NOW()
+     WHERE user_id=$7`,
+    [char.x, char.y, char.hp,
      JSON.stringify(char.skills), JSON.stringify(char.inventory),
-     JSON.stringify(char.equipment), char.combatStyle, char.coins, userId]
+     JSON.stringify(char.equipment), userId]
   );
 }
 
