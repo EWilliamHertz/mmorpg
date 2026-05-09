@@ -13,10 +13,11 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const TILE_SIZE = 32;
 
-// Dynamically set canvas size to fill container
+// Dynamically set canvas size to fill container (accounting for sidebar)
 function resizeCanvas() {
   const wrapper = document.getElementById('gameWrapper');
-  canvas.width = wrapper.clientWidth;
+  const sidePanel = document.getElementById('sidePanel');
+  canvas.width = wrapper.clientWidth - sidePanel.offsetWidth;
   canvas.height = wrapper.clientHeight;
 }
 resizeCanvas();
