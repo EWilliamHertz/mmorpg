@@ -1,0 +1,83 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #1a1610; font-family: 'Courier New', monospace; user-select: none; }
+
+#game-wrapper { display: flex; width: 100%; height: 100%; }
+#game-left { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+#game-canvas { flex: 1; display: block; background: #000; cursor: crosshair; image-rendering: pixelated; }
+
+/* Chat */
+#chat-panel { height: 110px; background: #2e281e; border-top: 2px solid #5c5445; overflow-y: auto; padding: 4px 6px; font-size: 11px; line-height: 1.5; }
+#chat-messages .msg-system { color: #ff981f; }
+#chat-messages .msg-combat { color: #ff4444; }
+#chat-messages .msg-skill { color: #33ff33; }
+#chat-messages .msg-drop { color: #ff00ff; }
+#chat-messages .msg-info { color: #ffff00; }
+
+/* Right Panel */
+#right-panel { width: 210px; background: #3e3529; border-left: 2px solid #5c5445; display: flex; flex-direction: column; }
+#minimap-area { padding: 4px; background: #2e281e; border-bottom: 2px solid #5c5445; display: flex; justify-content: center; }
+#minimap-canvas { border: 2px solid #5c5445; image-rendering: pixelated; }
+
+/* Orbs */
+#orbs-area { display: flex; justify-content: space-around; padding: 4px 4px; background: #2e281e; border-bottom: 2px solid #5c5445; font-size: 11px; }
+.orb { display: flex; align-items: center; gap: 3px; }
+.orb-icon { font-size: 12px; }
+.orb-text { font-weight: bold; font-size: 11px; }
+
+/* Tabs */
+#tab-buttons { display: flex; background: #1a1610; padding: 2px; gap: 2px; }
+.tab-btn { flex: 1; background: #3e3529; border: 1px solid #5c5445; color: #ff981f; font-size: 15px; padding: 3px 0; cursor: pointer; font-family: inherit; }
+.tab-btn.active { background: #564b3a; border-bottom-color: #564b3a; }
+.tab-btn:hover { background: #4a3e2c; }
+
+#tab-content { flex: 1; overflow-y: auto; padding: 3px; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* Inventory */
+.inv-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; }
+.inv-slot { aspect-ratio: 1; background: #564b3a; border: 1px solid #5c5445; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; font-size: 18px; border-radius: 2px; }
+.inv-slot:hover { background: #6b5d47; border-color: #8b7b5e; }
+.inv-slot .icount { position: absolute; bottom: 0; right: 2px; font-size: 9px; color: #ffff00; font-weight: bold; text-shadow: 1px 1px 0 #000; }
+
+/* Stats */
+.stat-row { display: flex; align-items: center; padding: 3px 4px; background: #564b3a; border: 1px solid #5c5445; font-size: 10px; margin-bottom: 1px; border-radius: 2px; flex-wrap: wrap; }
+.stat-icon { width: 18px; text-align: center; }
+.stat-name { color: #ff981f; flex: 1; margin-left: 2px; }
+.stat-lvl { color: #00ff00; font-weight: bold; min-width: 22px; text-align: right; }
+.stat-xp { color: #999; font-size: 9px; margin-left: 4px; min-width: 55px; text-align: right; }
+.stat-bar { width: 100%; height: 2px; background: #2e281e; margin-top: 2px; border-radius: 1px; }
+.stat-bar-fill { height: 100%; background: #33cc33; border-radius: 1px; }
+
+/* Combat style */
+.style-area { padding: 6px 2px; text-align: center; }
+.style-area label { color: #ff981f; font-size: 10px; display: block; margin-bottom: 4px; }
+.style-btn { background: #564b3a; border: 1px solid #5c5445; color: #ff981f; padding: 2px 5px; font-size: 10px; cursor: pointer; font-family: inherit; margin: 1px; border-radius: 2px; }
+.style-btn.active { background: #6b5d47; border-color: #ff981f; }
+.style-btn:hover { background: #6b5d47; }
+
+/* Equipment */
+.equip-area { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px; }
+.equip-row { display: flex; gap: 3px; }
+.equip-slot { width: 44px; height: 44px; background: #564b3a; border: 1px solid #5c5445; display: flex; align-items: center; justify-content: center; font-size: 18px; cursor: pointer; position: relative; border-radius: 2px; }
+.equip-slot:hover { background: #6b5d47; }
+.equip-label { position: absolute; top: 1px; left: 2px; font-size: 7px; color: #999; }
+.equip-summary { margin-top: 8px; font-size: 10px; color: #ff981f; text-align: center; line-height: 1.6; }
+.equip-summary span { color: #00ff00; }
+
+/* XP Tracker */
+#xp-tracker { padding: 3px 6px; background: #2e281e; border-top: 2px solid #5c5445; font-size: 10px; color: #ff981f; text-align: center; }
+
+/* Context Menu */
+#context-menu { position: fixed; background: #3e3529; border: 2px solid #5c5445; z-index: 200; display: none; min-width: 140px; font-family: 'Courier New', monospace; }
+.ctx-title { padding: 3px 8px; color: #ffff00; font-size: 11px; border-bottom: 1px solid #5c5445; font-weight: bold; }
+.ctx-option { padding: 3px 8px; color: #ff981f; font-size: 11px; cursor: pointer; }
+.ctx-option:hover { background: #564b3a; }
+
+/* Tooltip */
+#tooltip { position: fixed; background: #1a1610ee; border: 1px solid #5c5445; color: #ffff00; padding: 2px 6px; font-size: 11px; font-family: 'Courier New', monospace; pointer-events: none; z-index: 100; display: none; white-space: nowrap; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #2e281e; }
+::-webkit-scrollbar-thumb { background: #564b3a; border-radius: 2px; }

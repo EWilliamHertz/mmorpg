@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RealmScape RPG</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="game-wrapper">
+    <div id="game-left">
+      <canvas id="game-canvas"></canvas>
+      <div id="chat-panel">
+        <div id="chat-messages"></div>
+      </div>
+    </div>
+    <div id="right-panel">
+      <div id="minimap-area">
+        <canvas id="minimap-canvas" width="152" height="152"></canvas>
+      </div>
+      <div id="orbs-area">
+        <div class="orb">
+          <span class="orb-icon">❤️</span>
+          <span class="orb-text" id="hp-text" style="color:#00ff00">10/10</span>
+        </div>
+        <div class="orb">
+          <span class="orb-icon">✨</span>
+          <span class="orb-text" id="prayer-text" style="color:#33ccff">1</span>
+        </div>
+        <div class="orb">
+          <span class="orb-icon">⚔️</span>
+          <span class="orb-text" id="combat-text" style="color:#ffcc00">3</span>
+        </div>
+      </div>
+      <div id="tab-buttons">
+        <button class="tab-btn active" data-tab="inventory" title="Inventory">🎒</button>
+        <button class="tab-btn" data-tab="stats" title="Skills">📊</button>
+        <button class="tab-btn" data-tab="equipment" title="Equipment">⚔️</button>
+      </div>
+      <div id="tab-content">
+        <div id="inventory-tab" class="tab-panel active"></div>
+        <div id="stats-tab" class="tab-panel"></div>
+        <div id="equipment-tab" class="tab-panel"></div>
+      </div>
+      <div id="xp-tracker">
+        <span id="xp-total">Total XP: 0</span>
+      </div>
+    </div>
+  </div>
+  <div id="context-menu"></div>
+  <div id="tooltip"></div>
+  <script src="./game.js"></script>
+</body>
+</html>
