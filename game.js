@@ -12,8 +12,23 @@ if (!token) { window.location.href = '/'; }
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const TILE_SIZE = 32;
-const VIEW_W = Math.floor(canvas.width / TILE_SIZE);
-const VIEW_H = Math.floor(canvas.height / TILE_SIZE);
+
+// Dynamically set canvas size to fill container
+function resizeCanvas() {
+  const wrapper = document.getElementById('gameWrapper');
+  canvas.width = wrapper.clientWidth;
+  canvas.height = wrapper.clientHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+let VIEW_W = Math.floor(canvas.width / TILE_SIZE);
+let VIEW_H = Math.floor(canvas.height / TILE_SIZE);
+
+function updateViewDimensions() {
+  VIEW_W = Math.floor(canvas.width / TILE_SIZE);
+  VIEW_H = Math.floor(canvas.height / TILE_SIZE);
+}
 
 // ─── Game State ───────────────────────────────────────────────────────────────
 let map = null;
@@ -252,6 +267,8 @@ function lerp(a, b, t) { return a + (b - a) * t; }
 function render(ts) {
   requestAnimationFrame(render);
   if (!map || !myPlayer) return;
+  
+  updateViewDimensions();
 
   const dt = Math.min((ts - lastRenderTime) / 1000, 0.1);
   lastRenderTime = ts;
