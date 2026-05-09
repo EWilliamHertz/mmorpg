@@ -4,7 +4,8 @@
 // ===================== CONSTANTS =====================
 var TS = 32; // tile size in px
 var WS = 64; // world size in tiles
-var TICK = 600; // ms per game tick
+var TICK = 350; // ms per game tick (snappier than 600ms)
+var SAVE_INTERVAL = 60; // auto-save every 60 ticks (~21s)
 
 // ===================== SEEDED RNG =====================
 function makeRng(s) {
@@ -37,22 +38,22 @@ var ITEMS = {
   raw_trout:  { n:"Raw trout",     ic:"🐟" },
   trout:      { n:"Trout",         ic:"🍣", heal:7 },
   raw_chicken:{ n:"Raw chicken",   ic:"🍗" },
-  chicken_m:  { n:"Cooked chicken", ic:"🍖", heal:4 },
+  chicken_m:  { n:"Cooked chicken",ic:"🍖", heal:4 },
   bones:      { n:"Bones",         ic:"🦴" },
   big_bones:  { n:"Big bones",     ic:"🦴" },
   coins:      { n:"Coins",         ic:"🪙", stack:1 },
   feather:    { n:"Feather",       ic:"🪶", stack:1 },
   goblin_mail:{ n:"Goblin mail",   ic:"👕" },
-  bronze_sword:  { n:"Bronze sword",      ic:"🗡️", eq:"weapon", ab:4,  sb:3 },
-  iron_sword:    { n:"Iron sword",        ic:"🗡️", eq:"weapon", ab:10, sb:8 },
-  steel_sword:   { n:"Steel sword",       ic:"🗡️", eq:"weapon", ab:19, sb:15 },
-  bronze_shield: { n:"Bronze shield",     ic:"🛡️", eq:"shield", db:4 },
-  iron_shield:   { n:"Iron shield",       ic:"🛡️", eq:"shield", db:10 },
-  bronze_helm:   { n:"Bronze helm",       ic:"⛑️", eq:"head",   db:3 },
-  iron_helm:     { n:"Iron helm",         ic:"⛑️", eq:"head",   db:7 },
-  leather_body:  { n:"Leather body",      ic:"🥋", eq:"body",   db:6 },
-  iron_platebody:{ n:"Iron platebody",    ic:"🥋", eq:"body",   db:21 },
-  bread:         { n:"Bread",             ic:"🍞", heal:5 },
+  bronze_sword:   { n:"Bronze sword",   ic:"🗡️", eq:"weapon", ab:4,  sb:3 },
+  iron_sword:     { n:"Iron sword",     ic:"🗡️", eq:"weapon", ab:10, sb:8 },
+  steel_sword:    { n:"Steel sword",    ic:"🗡️", eq:"weapon", ab:19, sb:15 },
+  bronze_shield:  { n:"Bronze shield",  ic:"🛡️", eq:"shield", db:4 },
+  iron_shield:    { n:"Iron shield",    ic:"🛡️", eq:"shield", db:10 },
+  bronze_helm:    { n:"Bronze helm",    ic:"⛑️", eq:"head",   db:3 },
+  iron_helm:      { n:"Iron helm",      ic:"⛑️", eq:"head",   db:7 },
+  leather_body:   { n:"Leather body",   ic:"🥋", eq:"body",   db:6 },
+  iron_platebody: { n:"Iron platebody", ic:"🥋", eq:"body",   db:21 },
+  bread:          { n:"Bread",          ic:"🍞", heal:5 },
 };
 
 // ===================== MONSTERS =====================
@@ -67,7 +68,7 @@ var MONS = {
     drops:[{id:"bones",c:1},{id:"coins",c:.4,mn:1,mx:4}] },
   guard:   { n:"Guard",       lv:21, hp:22, a:19, s:18, d:14, ag:0, rt:50,
     drops:[{id:"bones",c:1},{id:"coins",c:.8,mn:15,mx:60},{id:"iron_sword",c:.04},{id:"bread",c:.15}] },
-  spider:  { n:"Giant spider", lv:27, hp:50, a:26, s:24, d:25, ag:4, rt:60,
+  spider:  { n:"Giant spider",lv:27, hp:50, a:26, s:24, d:25, ag:4, rt:60,
     drops:[{id:"big_bones",c:1},{id:"coins",c:.5,mn:20,mx:100},{id:"steel_sword",c:.02},{id:"iron_platebody",c:.01}] },
 };
 var MCOL = { chicken:"#f0e6c8", goblin:"#4a8c3a", cow:"#c8b896", rat:"#8b7355", guard:"#a0a0b0", spider:"#2a1a0a" };
@@ -82,21 +83,26 @@ function lvFor(xp) { for(var l=1;l<99;l++) if(xp<xpFor(l+1)) return l; return 99
 
 // ===================== STATE =====================
 var canvas, ctx, mcanvas, mctx;
-var cw, ch, tx, ty; // canvas dims and tile counts
+var cw, ch, tx, ty;
 var world = [], objs = [], mons = [], gitems = [];
 var cam = { x:0, y:0 };
 var tick = 0;
+var saveTick = 0;
 var curTab = "inventory";
-var ctxMenu = null; // context menu state
+var ctxMenu = null;
+var gameReady = false;
 
 var P = {
-  x:32, y:32, path:[], xp:{},
+  x:32, y:32,
+  // Smooth rendering
+  rx:32*32, ry:32*32, // render pixel position (lerped)
+  path:[], xp:{},
   inv: new Array(28).fill(null),
   eq: { weapon:null, shield:null, head:null, body:null, legs:null },
-  ct: null,   // combat target (monster ref)
-  ctTmr: 0,   // combat timer
-  gt: null,   // gather target (obj ref)
-  gtTmr: 0,   // gather timer
+  ct: null,
+  ctTmr: 0,
+  gt: null,
+  gtTmr: 0,
   style: "attack",
   dead: false, dTmr: 0,
   hp: 10,
@@ -165,29 +171,23 @@ function genWorld() {
   var r = makeRng(42);
   var y,x;
   for(y=0;y<WS;y++) { world[y]=[]; for(x=0;x<WS;x++) world[y][x]=T.GRASS; }
-
-  // Southern water
   for(y=52;y<WS;y++) for(x=18;x<56;x++) world[y][x] = y>55?T.DWATER:T.WATER;
-  // Lake
   for(y=46;y<55;y++) for(x=36;x<53;x++) {
     var dx=x-44.5, dy=y-51; if(dx*dx/64+dy*dy/20<1) world[y][x]=T.WATER;
   }
-  // Sand borders
   for(y=1;y<WS-1;y++) for(x=1;x<WS-1;x++) {
     if(world[y][x]!==T.WATER&&world[y][x]!==T.DWATER) {
-      for(var dy=-1;dy<=1;dy++) for(var dx=-1;dx<=1;dx++) {
-        var ny=y+dy,nx=x+dx;
+      for(var dy=-1;dy<=1;dy++) for(var dx2=-1;dx2<=1;dx2++) {
+        var ny=y+dy,nx=x+dx2;
         if(ny>=0&&ny<WS&&nx>=0&&nx<WS&&(world[ny][nx]===T.WATER||world[ny][nx]===T.DWATER)&&r()<0.55)
           world[y][x]=T.SAND;
       }
     }
   }
-  // Main paths
   for(x=4;x<58;x++) { world[32][x]=T.DIRT; world[31][x]=T.DIRT; }
   for(y=8;y<50;y++) { world[y][32]=T.DIRT; world[y][31]=T.DIRT; }
   for(x=32;x<55;x++) world[18][x]=T.DIRT;
   for(y=32;y<47;y++) world[y][15]=T.DIRT;
-  // Town buildings
   for(y=28;y<31;y++) for(x=28;x<31;x++) world[y][x]=T.FLOOR;
   for(x=27;x<32;x++) { world[27][x]=T.WALL; world[31][x]=T.WALL; }
   for(y=27;y<32;y++) { world[y][27]=T.WALL; world[y][32]=T.WALL; }
@@ -196,12 +196,9 @@ function genWorld() {
   for(x=34;x<40;x++) { world[33][x]=T.WALL; world[37][x]=T.WALL; }
   for(y=33;y<38;y++) { world[y][34]=T.WALL; world[y][40]=T.WALL; }
   world[37][37]=T.FLOOR;
-  // Scatter dirt
   for(var i=0;i<50;i++) { var px=1+Math.floor(r()*(WS-2)),py=1+Math.floor(r()*(WS-2)); if(world[py][px]===T.GRASS)world[py][px]=T.DIRT; }
-  // Border
   for(i=0;i<WS;i++) { world[0][i]=T.DWATER; world[WS-1][i]=T.DWATER; world[i][0]=T.DWATER; world[i][WS-1]=T.DWATER; }
 
-  // === OBJECTS ===
   function placeObj(type,sx,sy,w,h,count) {
     for(var i=0;i<count;i++){
       var ox=sx+Math.floor(r()*w), oy=sy+Math.floor(r()*h);
@@ -214,17 +211,14 @@ function genWorld() {
   placeObj(OT.RCOPPER,48,5,11,12,10);
   placeObj(OT.RIRON,52,8,8,8,5);
   placeObj(OT.RCOAL,54,10,6,6,3);
-  // Town deco trees
   [[25,30],[36,30],[30,25],[35,25],[25,35],[38,40],[26,40],[20,28],[40,28]].forEach(function(p){
     if(walkTile(p[0],p[1])&&!objAt(p[0],p[1])) objs.push({t:OT.TREE,x:p[0],y:p[1],dep:false,rt:0});
   });
-  // Fishing spots (in water tiles)
   [[36,49],[40,50],[44,49],[42,51],[38,52],[46,50]].forEach(function(p){
     if(world[p[1]]&&(world[p[1]][p[0]]===T.WATER))
       objs.push({t:OT.FISH,x:p[0],y:p[1],dep:false,rt:0});
   });
 
-  // === MONSTERS ===
   function spawnMons(type,sx,sy,area,count) {
     var def=MONS[type];
     for(var i=0;i<count;i++){
@@ -252,7 +246,6 @@ function findPath(sx,sy,tx,ty) {
     for(var d=0;d<dirs.length;d++){
       var nx=c.x+dirs[d].x, ny=c.y+dirs[d].y, k=nx+","+ny;
       if(vis[k]) continue; vis[k]=1;
-      // diagonal check
       if(dirs[d].x&&dirs[d].y){ if(!walkable(c.x+dirs[d].x,c.y)||!walkable(c.x,c.y+dirs[d].y)) continue; }
       var np=c.p.concat([{x:nx,y:ny}]);
       if(nx===tx&&ny===ty) return np;
@@ -298,7 +291,7 @@ function pAttack(m) {
     if(dmg>0){ addXp(P.style,dmg*4); addXp("hitpoints",Math.floor(dmg*1.33)); }
     if(m.hp<=0) mKill(m);
   } else { msg("You miss the "+def.n+".","combat"); }
-  m.ct="player"; // retaliate
+  m.ct="player";
 }
 
 function mAttack(m) {
@@ -366,7 +359,7 @@ function gameTick() {
   tick++;
   if(P.dead){P.dTmr--;if(P.dTmr<=0)pRespawn();return;}
 
-  // Movement
+  // Movement (1 tile per tick = 350ms, snappy)
   if(P.path.length){
     var nx=P.path[0];
     if(walkable(nx.x,nx.y)){P.x=nx.x;P.y=nx.y;P.path.shift();}
@@ -386,20 +379,20 @@ function gameTick() {
     }
   }
 
-  // Combat
+  // Combat (attack every 5 ticks = ~1.75s, close to OSRS 2.4s)
   if(P.ct){
     var m=P.ct;
     if(m.dead){P.ct=null;}
     else{
       var d=Math.abs(P.x-m.x)+Math.abs(P.y-m.y);
-      if(d<=1.5){P.path=[];P.ctTmr++;if(P.ctTmr>=4){pAttack(m);P.ctTmr=0;}}
+      if(d<=1.5){P.path=[];P.ctTmr++;if(P.ctTmr>=5){pAttack(m);P.ctTmr=0;}}
     }
   }
 
-  // Gathering
+  // Gathering (every 5 ticks = ~1.75s)
   if(P.gt&&P.path.length===0){
     var o=P.gt, d2=Math.abs(P.x-o.x)+Math.abs(P.y-o.y);
-    if(d2<=2){P.gtTmr++;if(P.gtTmr>=4){gatherTick();P.gtTmr=0;}}
+    if(d2<=2){P.gtTmr++;if(P.gtTmr>=5){gatherTick();P.gtTmr=0;}}
     else P.gt=null;
   }
 
@@ -407,11 +400,10 @@ function gameTick() {
   mons.forEach(function(m){
     if(m.dead){m.rt--;if(m.rt<=0){m.dead=false;m.hp=MONS[m.t].hp;m.x=m.sx;m.y=m.sy;m.ct=null;}return;}
     var def=MONS[m.t];
-    // Aggro
     if(!m.ct&&def.ag>0){var dp=Math.abs(P.x-m.x)+Math.abs(P.y-m.y);if(dp<=def.ag&&!P.dead)m.ct="player";}
     if(m.ct==="player"){
       var dp2=Math.abs(P.x-m.x)+Math.abs(P.y-m.y);
-      if(dp2<=1.5){m.ctm++;if(m.ctm>=4){mAttack(m);m.ctm=0;}}
+      if(dp2<=1.5){m.ctm++;if(m.ctm>=5){mAttack(m);m.ctm=0;}}
       else{m.mt++;if(m.mt>=2){
         var dx=Math.sign(P.x-m.x),dy=Math.sign(P.y-m.y);
         if(walkable(m.x+dx,m.y+dy)){m.x+=dx;m.y+=dy;}
@@ -438,18 +430,23 @@ function gameTick() {
   // Ground item decay
   for(var i=gitems.length-1;i>=0;i--){gitems[i].tmr--;if(gitems[i].tmr<=0)gitems.splice(i,1);}
 
-  // HP regen
-  if(tick%100===0&&P.hp<maxHp()) P.hp++;
+  // HP regen (every 80 ticks ~28s)
+  if(tick%80===0&&P.hp<maxHp()) P.hp++;
+
+  // Auto-save
+  saveTick++;
+  if(saveTick>=SAVE_INTERVAL){ saveTick=0; saveGame(false); }
 }
 
 // ===================== RENDERING =====================
+var LERP_SPEED = 0.22; // smooth movement factor
+
 function drawTile(x,y) {
   var sx=(x-cam.x)*TS, sy=(y-cam.y)*TS;
   var tt=world[y][x], c=TC[tt];
   if(!c) return;
   ctx.fillStyle=c[((x*7+y*13)%3+3)%3];
   ctx.fillRect(sx,sy,TS,TS);
-  // Detail
   if(tt===T.WATER||tt===T.DWATER){
     ctx.fillStyle="rgba(255,255,255,0.08)";
     var wo=Math.sin(tick*.3+x*.5+y*.7)*3;
@@ -511,34 +508,27 @@ function drawRock(sx,sy) {
   ctx.strokeStyle="rgba(0,0,0,0.3)";ctx.lineWidth=1;ctx.stroke();
 }
 
-function drawEntity(ex,ey,col,isP,hp,mhp,name) {
-  var sx=(ex-cam.x)*TS+TS/2, sy=(ey-cam.y)*TS+TS/2;
-  // Shadow
+function drawEntity(rpx, rpy, col, isP, hp, mhp, name) {
+  // rpx, rpy are render pixel positions (already lerped)
+  var sx = rpx - cam.x * TS + TS/2;
+  var sy = rpy - cam.y * TS + TS/2;
   ctx.fillStyle="rgba(0,0,0,0.25)";ctx.beginPath();ctx.ellipse(sx,sy+10,8,4,0,0,6.28);ctx.fill();
   if(isP){
-    // Legs
     ctx.fillStyle="#2c4a8c";ctx.fillRect(sx-5,sy+2,4,8);ctx.fillRect(sx+1,sy+2,4,8);
-    // Body
     ctx.fillStyle=P.eq.body?"#6a5a3a":"#4a90e2";ctx.fillRect(sx-6,sy-8,12,12);
-    // Arms
     ctx.fillStyle=P.eq.body?"#6a5a3a":"#4a90e2";ctx.fillRect(sx-9,sy-6,4,10);ctx.fillRect(sx+5,sy-6,4,10);
-    // Head
     ctx.fillStyle="#f5c07c";ctx.beginPath();ctx.arc(sx,sy-13,6,0,6.28);ctx.fill();
     if(P.eq.head){ctx.fillStyle="#8a7a5a";ctx.beginPath();ctx.arc(sx,sy-14,7,Math.PI,0);ctx.fill();}
-    // Eyes
     ctx.fillStyle="#000";ctx.fillRect(sx-3,sy-14,2,2);ctx.fillRect(sx+1,sy-14,2,2);
-    // Weapon
     if(P.eq.weapon){ctx.fillStyle="#b0b0b0";ctx.fillRect(sx+7,sy-12,2,18);ctx.fillStyle="#8b6914";ctx.fillRect(sx+5,sy-2,6,3);}
-    // Shield
     if(P.eq.shield){ctx.fillStyle="#8a7a5a";ctx.fillRect(sx-11,sy-6,5,9);ctx.fillStyle="#6a5a3a";ctx.fillRect(sx-10,sy-4,3,5);}
   } else {
+    // Entity position from tile coords for monsters
     ctx.fillStyle=col;ctx.beginPath();ctx.arc(sx,sy-2,10,0,6.28);ctx.fill();
     ctx.fillStyle="rgba(0,0,0,0.2)";ctx.beginPath();ctx.arc(sx,sy+2,8,0,6.28);ctx.fill();
-    // Eyes
     ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(sx-3,sy-4,2.5,0,6.28);ctx.fill();ctx.beginPath();ctx.arc(sx+3,sy-4,2.5,0,6.28);ctx.fill();
     ctx.fillStyle="#000";ctx.fillRect(sx-2,sy-5,2,2);ctx.fillRect(sx+2,sy-5,2,2);
   }
-  // HP bar
   if(hp<mhp){
     var bw=24,bx=sx-bw/2,by=sy-22;
     ctx.fillStyle="#600";ctx.fillRect(bx,by,bw,4);
@@ -577,27 +567,36 @@ function drawMinimap() {
 }
 
 // ===================== MAIN RENDER LOOP =====================
-var mouseWX=-1,mouseWY=-1;
+var mouseWX=-1, mouseWY=-1;
 
 function render() {
-  if(!canvas) return;
-  cam.x=P.x-Math.floor(tx/2); cam.y=P.y-Math.floor(ty/2);
-  cam.x=Math.max(0,Math.min(WS-tx,cam.x)); cam.y=Math.max(0,Math.min(WS-ty,cam.y));
+  if(!canvas||!gameReady) { requestAnimationFrame(render); return; }
+
+  // Smooth camera lerp toward player tile
+  var targetCamX = P.x - Math.floor(tx/2);
+  var targetCamY = P.y - Math.floor(ty/2);
+  targetCamX = Math.max(0, Math.min(WS-tx, targetCamX));
+  targetCamY = Math.max(0, Math.min(WS-ty, targetCamY));
+  cam.x += (targetCamX - cam.x) * 0.15;
+  cam.y += (targetCamY - cam.y) * 0.15;
+
+  // Smooth player render position (lerp toward actual tile)
+  var targetRX = P.x * TS;
+  var targetRY = P.y * TS;
+  P.rx += (targetRX - P.rx) * 0.25;
+  P.ry += (targetRY - P.ry) * 0.25;
+
   ctx.fillStyle="#000";ctx.fillRect(0,0,cw,ch);
 
-  // Tiles
-  for(var y=Math.floor(cam.y);y<Math.min(WS,cam.y+ty+1);y++)
-    for(var x=Math.floor(cam.x);x<Math.min(WS,cam.x+tx+1);x++) drawTile(x,y);
+  for(var y=Math.floor(cam.y);y<Math.min(WS,cam.y+ty+2);y++)
+    for(var x=Math.floor(cam.x);x<Math.min(WS,cam.x+tx+2);x++) drawTile(x,y);
 
-  // Grid lines (subtle)
+  // Grid lines
   ctx.strokeStyle="rgba(0,0,0,0.08)";ctx.lineWidth=1;
-  for(var y=Math.floor(cam.y);y<Math.min(WS,cam.y+ty+1);y++){var sy2=(y-cam.y)*TS;ctx.beginPath();ctx.moveTo(0,sy2);ctx.lineTo(cw,sy2);ctx.stroke();}
-  for(var x=Math.floor(cam.x);x<Math.min(WS,cam.x+tx+1);x++){var sx2=(x-cam.x)*TS;ctx.beginPath();ctx.moveTo(sx2,0);ctx.lineTo(sx2,ch);ctx.stroke();}
+  for(var y=Math.floor(cam.y);y<Math.min(WS,cam.y+ty+2);y++){var sy2=(y-cam.y)*TS;ctx.beginPath();ctx.moveTo(0,sy2);ctx.lineTo(cw,sy2);ctx.stroke();}
+  for(var x=Math.floor(cam.x);x<Math.min(WS,cam.x+tx+2);x++){var sx2=(x-cam.x)*TS;ctx.beginPath();ctx.moveTo(sx2,0);ctx.lineTo(sx2,ch);ctx.stroke();}
 
-  // Objects
   objs.forEach(function(o){ if(o.x>=cam.x-1&&o.x<=cam.x+tx+1&&o.y>=cam.y-1&&o.y<=cam.y+ty+1) drawObj(o); });
-
-  // Ground items
   gitems.forEach(function(gi){ if(gi.x>=cam.x&&gi.x<=cam.x+tx&&gi.y>=cam.y&&gi.y<=cam.y+ty) drawGItem(gi); });
 
   // Destination marker
@@ -613,13 +612,14 @@ function render() {
     if(m.dead||m.x<cam.x-1||m.x>cam.x+tx+1||m.y<cam.y-1||m.y>cam.y+ty+1) return;
     var def=MONS[m.t];
     var show=m===P.ct||(mouseWX===m.x&&mouseWY===m.y);
-    drawEntity(m.x,m.y,MCOL[m.t]||"#888",false,m.hp,def.hp,show?def.n+" (lvl "+def.lv+")":null);
+    // monsters use tile coords directly (no lerp needed for them)
+    drawEntity(m.x*TS, m.y*TS, MCOL[m.t]||"#888", false, m.hp, def.hp, show?def.n+" (lvl "+def.lv+")":null);
   });
 
-  // Player
-  if(!P.dead) drawEntity(P.x,P.y,"#4a90e2",true,P.hp,maxHp(),null);
+  // Player (using smooth render position)
+  if(!P.dead) drawEntity(P.rx, P.ry, "#4a90e2", true, P.hp, maxHp(), null);
 
-  // Hover tile highlight
+  // Hover highlight
   if(mouseWX>=0&&mouseWY>=0&&mouseWX<WS&&mouseWY<WS){
     var hsx=(mouseWX-cam.x)*TS, hsy=(mouseWY-cam.y)*TS;
     ctx.strokeStyle="rgba(255,255,255,0.2)";ctx.lineWidth=1;ctx.strokeRect(hsx,hsy,TS,TS);
@@ -628,7 +628,7 @@ function render() {
   // Gathering indicator
   if(P.gt&&P.path.length===0){
     var gsx=(P.gt.x-cam.x)*TS, gsy=(P.gt.y-cam.y)*TS;
-    var prog=P.gtTmr/4;
+    var prog=P.gtTmr/5;
     ctx.strokeStyle="#ffff00";ctx.lineWidth=2;
     ctx.beginPath();ctx.arc(gsx+TS/2,gsy+TS/2,14,-Math.PI/2,-Math.PI/2+prog*6.28);ctx.stroke();
   }
@@ -682,7 +682,7 @@ function renderStats() {
   });
   html+='<div class="style-area"><label>Combat Style:</label>';
   ["attack","strength","defence"].forEach(function(s){
-    html+='<button class="style-btn'+(P.style===s?" active":"")+'" data-st="'+s+'">'+SICON[SIDS.indexOf(s)]+' '+s.charAt(0).toUpperCase()+s.slice(1)+'</button>';
+    html+='<button class="style-btn'+(P.style===s?" active":"")+ '" data-st="'+s+'">'+SICON[SIDS.indexOf(s)]+' '+s.charAt(0).toUpperCase()+s.slice(1)+'</button>';
   });
   html+='</div>';
   el.innerHTML=html;
@@ -736,7 +736,6 @@ function invClick(slot) {
     if(it.c>1)it.c--;else P.inv[slot]=null;
     addXp("prayer",xpg); msg("You bury the "+d.n+". (+"+xpg+" Prayer XP)","skill"); return;
   }
-  // Cooking
   var cookMap={raw_shrimp:["shrimp",30],raw_trout:["trout",70],raw_chicken:["chicken_m",30]};
   if(cookMap[it.id]){
     var r2=cookMap[it.id];
@@ -756,34 +755,22 @@ function onCanvasClick(e) {
   var tileX=Math.floor(cx2/TS+cam.x), tileY=Math.floor(cy2/TS+cam.y);
   if(tileX<0||tileX>=WS||tileY<0||tileY>=WS) return;
 
-  // Ground item?
   var gi=null; for(var i=0;i<gitems.length;i++) if(gitems[i].x===tileX&&gitems[i].y===tileY){gi=gitems[i];break;}
-  if(gi){
-    var p=pathAdj(P.x,P.y,tileX,tileY);
-    if(p!==null){P.path=p;P.ct=null;P.gt=null;P.pickup=gi;}
-    return;
-  }
+  if(gi){ var p=pathAdj(P.x,P.y,tileX,tileY); if(p!==null){P.path=p;P.ct=null;P.gt=null;P.pickup=gi;} return; }
 
-  // Monster?
   var mo=monAt(tileX,tileY);
-  if(mo){
-    var p2=pathAdj(P.x,P.y,tileX,tileY);
-    if(p2!==null){P.path=p2;P.ct=mo;P.ctTmr=3;P.gt=null;P.pickup=null;msg("Attacking "+MONS[mo.t].n+"...","combat");}
-    return;
-  }
+  if(mo){ var p2=pathAdj(P.x,P.y,tileX,tileY); if(p2!==null){P.path=p2;P.ct=mo;P.ctTmr=4;P.gt=null;P.pickup=null;msg("Attacking "+MONS[mo.t].n+"...","combat");} return; }
 
-  // Object?
   var ob=objAt(tileX,tileY);
   if(ob&&!ob.dep){
     var p3=pathAdj(P.x,P.y,tileX,tileY);
-    if(p3!==null){P.path=p3;P.gt=ob;P.gtTmr=3;P.ct=null;P.pickup=null;
+    if(p3!==null){P.path=p3;P.gt=ob;P.gtTmr=4;P.ct=null;P.pickup=null;
       var act={tree:"Chopping",oak:"Chopping",willow:"Chopping",rcopper:"Mining",riron:"Mining",rcoal:"Mining",fish:"Fishing"};
       msg((act[ob.t]||"Interacting")+"...","info");
     }
     return;
   }
 
-  // Walk
   if(walkable(tileX,tileY)){
     var p4=findPath(P.x,P.y,tileX,tileY);
     if(p4){P.path=p4;P.ct=null;P.gt=null;P.pickup=null;}
@@ -804,29 +791,20 @@ function onCtx(e) {
   var gi=null; for(var i=0;i<gitems.length;i++) if(gitems[i].x===tileX&&gitems[i].y===tileY){gi=gitems[i];break;}
 
   if(mo){
-    var def=MONS[mo.t];
-    opts.push({label:"Attack "+def.n+" (lvl "+def.lv+")",fn:function(){
-      var p=pathAdj(P.x,P.y,mo.x,mo.y);
-      if(p!==null){P.path=p;P.ct=mo;P.ctTmr=3;P.gt=null;P.pickup=null;}
-    }});
-    opts.push({label:"Examine "+def.n,fn:function(){msg(def.n+" - Level "+def.lv+", HP "+def.hp+".","info");}});
+    (function(m){ var def=MONS[m.t];
+      opts.push({label:"Attack "+def.n+" (lvl "+def.lv+")",fn:function(){var p=pathAdj(P.x,P.y,m.x,m.y);if(p!==null){P.path=p;P.ct=m;P.ctTmr=4;P.gt=null;P.pickup=null;}}});
+      opts.push({label:"Examine "+def.n,fn:function(){msg(def.n+" - Level "+def.lv+", HP "+def.hp+".","info");}});
+    })(mo);
   }
   if(gi){
-    opts.push({label:"Take "+ITEMS[gi.id].n,fn:function(){
-      var p=pathAdj(P.x,P.y,gi.x,gi.y);
-      if(p!==null){P.path=p;P.ct=null;P.gt=null;P.pickup=gi;}
-    }});
+    (function(g){ opts.push({label:"Take "+ITEMS[g.id].n,fn:function(){var p=pathAdj(P.x,P.y,g.x,g.y);if(p!==null){P.path=p;P.ct=null;P.gt=null;P.pickup=g;}}}); })(gi);
   }
   if(ob&&!ob.dep){
-    var names={tree:"Chop Tree",oak:"Chop Oak",willow:"Chop Willow",rcopper:"Mine Copper",riron:"Mine Iron",rcoal:"Mine Coal",fish:"Fish"};
-    opts.push({label:names[ob.t]||"Use",fn:function(){
-      var p=pathAdj(P.x,P.y,ob.x,ob.y);
-      if(p!==null){P.path=p;P.gt=ob;P.gtTmr=3;P.ct=null;P.pickup=null;}
-    }});
+    (function(o){ var names={tree:"Chop Tree",oak:"Chop Oak",willow:"Chop Willow",rcopper:"Mine Copper",riron:"Mine Iron",rcoal:"Mine Coal",fish:"Fish"};
+      opts.push({label:names[o.t]||"Use",fn:function(){var p=pathAdj(P.x,P.y,o.x,o.y);if(p!==null){P.path=p;P.gt=o;P.gtTmr=4;P.ct=null;P.pickup=null;}}});
+    })(ob);
   }
-  opts.push({label:"Walk here",fn:function(){
-    if(walkable(tileX,tileY)){var p=findPath(P.x,P.y,tileX,tileY);if(p){P.path=p;P.ct=null;P.gt=null;P.pickup=null;}}
-  }});
+  (function(tx2,ty2){ opts.push({label:"Walk here",fn:function(){if(walkable(tx2,ty2)){var p=findPath(P.x,P.y,tx2,ty2);if(p){P.path=p;P.ct=null;P.gt=null;P.pickup=null;}}}}); })(tileX,tileY);
 
   showCtx(e.clientX,e.clientY,tileX+", "+tileY,opts);
 }
@@ -840,7 +818,6 @@ function showCtx(mx,my,title,opts) {
     el.appendChild(d);
   });
   el.style.display="block";el.style.left=mx+"px";el.style.top=my+"px";
-  // Keep on screen
   setTimeout(function(){
     if(mx+el.offsetWidth>window.innerWidth) el.style.left=(mx-el.offsetWidth)+"px";
     if(my+el.offsetHeight>window.innerHeight) el.style.top=(my-el.offsetHeight)+"px";
@@ -860,15 +837,12 @@ function onMouseMove(e) {
   var ob=objAt(mouseWX,mouseWY);
   var gi=null; for(var i=0;i<gitems.length;i++) if(gitems[i].x===mouseWX&&gitems[i].y===mouseWY){gi=gitems[i];break;}
 
-  if(mo){
-    tip.textContent=MONS[mo.t].n+" (level "+MONS[mo.t].lv+")";
-    canvas.style.cursor="pointer";
-  }else if(gi){
-    tip.textContent="Take: "+ITEMS[gi.id].n;canvas.style.cursor="pointer";
-  }else if(ob&&!ob.dep){
+  if(mo){ tip.textContent=MONS[mo.t].n+" (level "+MONS[mo.t].lv+")"; canvas.style.cursor="pointer"; }
+  else if(gi){ tip.textContent="Take: "+ITEMS[gi.id].n; canvas.style.cursor="pointer"; }
+  else if(ob&&!ob.dep){
     var nm={tree:"Tree",oak:"Oak tree",willow:"Willow tree",rcopper:"Copper rock",riron:"Iron rock",rcoal:"Coal rock",fish:"Fishing spot"};
-    tip.textContent=nm[ob.t]||"Object";canvas.style.cursor="pointer";
-  }else{tip.textContent="";canvas.style.cursor="crosshair";}
+    tip.textContent=nm[ob.t]||"Object"; canvas.style.cursor="pointer";
+  } else { tip.textContent=""; canvas.style.cursor="crosshair"; }
 
   if(tip.textContent){tip.style.display="block";tip.style.left=(e.clientX+12)+"px";tip.style.top=(e.clientY-8)+"px";}
   else tip.style.display="none";
@@ -888,37 +862,121 @@ document.querySelectorAll(".tab-btn").forEach(function(btn){
 
 // ===================== RESIZE =====================
 function resize() {
-  var r=canvas.parentElement.getBoundingClientRect();
-  cw=Math.floor(r.width);ch=Math.floor(r.height);
-  canvas.width=cw;canvas.height=ch;
-  tx=Math.ceil(cw/TS);ty=Math.ceil(ch/TS);
+  var parent = canvas.parentElement;
+  var r = parent.getBoundingClientRect();
+  cw=Math.floor(r.width); ch=Math.floor(r.height);
+  canvas.width=cw; canvas.height=ch;
+  tx=Math.ceil(cw/TS)+2; ty=Math.ceil(ch/TS)+2;
+}
+
+// ===================== SAVE / LOAD =====================
+var saveTimeout = null;
+
+function showSaved() {
+  var el = document.getElementById("save-indicator");
+  if(!el) return;
+  el.classList.add("show");
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(function(){ el.classList.remove("show"); }, 2000);
+}
+
+window.saveGame = function(silent) {
+  var token = localStorage.getItem("rs_token");
+  if(!token) return;
+  var payload = {
+    xp: P.xp,
+    inventory: P.inv,
+    equipment: P.eq,
+    pos_x: P.x,
+    pos_y: P.y,
+    hp: P.hp
+  };
+  fetch("/api/save", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+    body: JSON.stringify(payload)
+  }).then(function(r){ if(r.ok && !silent) showSaved(); });
+};
+
+function loadGame(callback) {
+  var token = localStorage.getItem("rs_token");
+  if(!token) { callback(false); return; }
+  fetch("/api/load", {
+    headers: { "Authorization": "Bearer " + token }
+  }).then(function(r){ return r.json(); })
+  .then(function(data){
+    if(data.error) { callback(false); return; }
+    // Apply loaded data
+    if(data.xp) {
+      SIDS.forEach(function(s){ if(data.xp[s] !== undefined) P.xp[s] = data.xp[s]; });
+    }
+    if(data.inventory) {
+      for(var i=0;i<28;i++) P.inv[i] = data.inventory[i] || null;
+    }
+    if(data.equipment) {
+      Object.keys(P.eq).forEach(function(k){ P.eq[k] = data.equipment[k] || null; });
+    }
+    if(data.pos_x) { P.x = data.pos_x; P.y = data.pos_y; }
+    if(data.hp) P.hp = Math.min(data.hp, maxHp());
+    P.rx = P.x * TS; P.ry = P.y * TS;
+    if(data.username) {
+      var nameEl = document.getElementById("player-name");
+      if(nameEl) nameEl.textContent = data.username;
+    }
+    callback(true);
+  }).catch(function(){ callback(false); });
 }
 
 // ===================== INIT =====================
 function init() {
-  canvas=document.getElementById("game-canvas");
-  ctx=canvas.getContext("2d");
-  mcanvas=document.getElementById("minimap-canvas");
-  mctx=mcanvas.getContext("2d");
-  resize(); window.addEventListener("resize",resize);
-  canvas.addEventListener("click",onCanvasClick);
-  canvas.addEventListener("contextmenu",onCtx);
-  canvas.addEventListener("mousemove",onMouseMove);
-  document.addEventListener("click",function(e){
-    if(!document.getElementById("context-menu").contains(e.target))hideCtx();
+  canvas = document.getElementById("game-canvas");
+  ctx = canvas.getContext("2d");
+  mcanvas = document.getElementById("minimap-canvas");
+  mctx = mcanvas.getContext("2d");
+
+  resize();
+  window.addEventListener("resize", resize);
+  canvas.addEventListener("click", onCanvasClick);
+  canvas.addEventListener("contextmenu", onCtx);
+  canvas.addEventListener("mousemove", onMouseMove);
+  document.addEventListener("click", function(e){
+    if(!document.getElementById("context-menu").contains(e.target)) hideCtx();
   });
 
+  // Set username from localStorage while loading
+  var storedName = localStorage.getItem("rs_username");
+  var nameEl = document.getElementById("player-name");
+  if(nameEl && storedName) nameEl.textContent = storedName;
+
   genWorld();
-  P.hp=maxHp();
+  P.hp = maxHp();
+  P.rx = P.x * TS; P.ry = P.y * TS;
+  cam.x = P.x - Math.floor(tx/2);
+  cam.y = P.y - Math.floor(ty/2);
 
-  msg("⚔️ Welcome to RealmScape! ⚔️","system");
-  msg("Click to move. Click monsters to attack.","info");
-  msg("Click trees/rocks/fishing spots to gather.","info");
-  msg("Right-click for more options.","info");
-  msg("Click items in inventory to use them.","info");
+  var lsEl = document.getElementById("ls-msg");
 
-  setInterval(gameTick,TICK);
-  requestAnimationFrame(render);
+  // Try to load saved character
+  loadGame(function(loaded) {
+    var ls = document.getElementById("loading-screen");
+    if(ls) ls.classList.add("hidden");
+    gameReady = true;
+
+    msg("⚔️ Welcome to RealmScape! ⚔️", "system");
+    if(loaded) {
+      msg("Character loaded. Welcome back, " + (localStorage.getItem("rs_username") || "Adventurer") + "!", "skill");
+    } else {
+      msg("New adventure begins! Click to move.", "info");
+    }
+    msg("Left-click to move/interact. Right-click for options.", "info");
+    msg("Click inventory items to use/equip them.", "info");
+
+    setInterval(gameTick, TICK);
+    requestAnimationFrame(render);
+  });
+
+  // Save on page unload
+  window.addEventListener("beforeunload", function(){ window.saveGame(true); });
 }
 
 init();

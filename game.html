@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>RealmScape – Play</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  /* Player info bar */
+  #player-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    background: #2e281e; border-bottom: 1px solid #5c5445;
+    padding: 3px 8px; font-size: 10px; color: #ff981f;
+  }
+  #player-bar .pname { color: #e8c870; font-weight: bold; }
+  #save-indicator { color: #33cc33; display: none; margin-left: 8px; }
+  #save-indicator.show { display: inline; }
+  #logout-btn {
+    background: #3e3529; border: 1px solid #5c5445; color: #ff981f;
+    padding: 1px 6px; font-size: 10px; cursor: pointer; font-family: inherit;
+    border-radius: 2px;
+  }
+  #logout-btn:hover { background: #564b3a; color: #ffcc44; }
+  #loading-screen {
+    position: fixed; inset: 0; background: #0d0a06;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 12px; z-index: 999;
+  }
+  #loading-screen .ls-title { font-family: 'Courier New', monospace; color: #c8a870; font-size: 22px; }
+  #loading-screen .ls-msg { color: #7a6040; font-size: 12px; font-family: 'Courier New', monospace; }
+  #loading-screen.hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div id="loading-screen">
+  <div class="ls-title">⚔ RealmScape ⚔</div>
+  <div class="ls-msg" id="ls-msg">Loading your character...</div>
+</div>
+
+<div id="game-wrapper" style="flex-direction:column;">
+  <div id="player-bar">
+    <span>👤 <span class="pname" id="player-name">Adventurer</span></span>
+    <span>
+      <span id="save-indicator">✓ Saved</span>
+      <button id="logout-btn" onclick="doLogout()">Logout</button>
+    </span>
+  </div>
+  <div style="display:flex;flex:1;min-height:0;">
+    <div id="game-left">
+      <canvas id="game-canvas"></canvas>
+      <div id="chat-panel">
+        <div id="chat-messages"></div>
+      </div>
+    </div>
+    <div id="right-panel">
+      <div id="minimap-area">
+        <canvas id="minimap-canvas" width="152" height="152"></canvas>
+      </div>
+      <div id="orbs-area">
+        <div class="orb"><span class="orb-icon">❤️</span><span class="orb-text" id="hp-text">10/10</span></div>
+        <div class="orb"><span class="orb-icon">✨</span><span class="orb-text" id="prayer-text">1</span></div>
+        <div class="orb"><span class="orb-icon">⚔️</span><span class="orb-text" id="combat-text">3</span></div>
+      </div>
+      <div id="tab-buttons">
+        <button class="tab-btn active" data-tab="inventory">🎒</button>
+        <button class="tab-btn" data-tab="stats">📊</button>
+        <button class="tab-btn" data-tab="equipment">🛡️</button>
+      </div>
+      <div id="tab-content">
+        <div id="inventory-tab" class="tab-panel active"></div>
+        <div id="stats-tab" class="tab-panel"></div>
+        <div id="equipment-tab" class="tab-panel"></div>
+      </div>
+      <div id="xp-tracker"><span id="xp-total">Total XP: 0</span></div>
+    </div>
+  </div>
+</div>
+
+<div id="context-menu"></div>
+<div id="tooltip"></div>
+
+<script>
+// Auth guard – redirect to login if no token
+(function() {
+  const token = localStorage.getItem('rs_token');
+  if (!token) { window.location.href = '/'; return; }
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    if (payload.exp * 1000 < Date.now()) {
+      localStorage.removeItem('rs_token');
+      localStorage.removeItem('rs_username');
+      window.location.href = '/';
+    }
+  } catch(e) { window.location.href = '/'; }
+})();
+
+function doLogout() {
+  if (window.saveGame) window.saveGame(true);
+  localStorage.removeItem('rs_token');
+  localStorage.removeItem('rs_username');
+  window.location.href = '/';
+}
+</script>
+<script src="game.js"></script>
+</body>
+</html>
