@@ -1,0 +1,15 @@
+{
+  "name": "realmscape-server",
+  "version": "1.0.0",
+  "main": "server.js",
+  "engines": { "node": "20.x" },
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.3",
+    "socket.io": "^4.7.5",
+    "express": "^4.19.2",
+    "cors": "^2.8.5"
+  }
+}
