@@ -14,9 +14,9 @@
 
     /* Right Panel */
     #sidePanel {
-      width: 140px; min-width: 140px; background: #2a1f0e;
+      width: 140px; background: #2a1f0e;
       border-left: 2px solid #8B6914; display: flex; flex-direction: column;
-      overflow: hidden;
+      overflow: hidden; flex-shrink: 0;
     }
     #playerBar {
       background: #1a1208; padding: 6px 8px; border-bottom: 1px solid #8B6914;
@@ -75,7 +75,7 @@
 
     /* Responsive Design */
     @media (max-width: 1024px) {
-      #sidePanel { width: 120px; min-width: 120px; }
+      #sidePanel { width: 120px; }
       #inventoryGrid { grid-template-columns: repeat(3, 1fr); }
       .inv-slot { width: 32px; height: 32px; font-size: 14px; }
       .eq-slot { width: 35px; height: 35px; font-size: 14px; }
@@ -83,7 +83,7 @@
     }
 
     @media (max-width: 768px) {
-      #sidePanel { width: 100px; min-width: 100px; }
+      #sidePanel { width: 100px; }
       #inventoryGrid { grid-template-columns: repeat(2, 1fr); }
       .inv-slot { width: 30px; height: 30px; font-size: 12px; }
       .eq-slot { width: 30px; height: 30px; font-size: 12px; }
@@ -97,7 +97,7 @@
     }
 
     @media (max-width: 480px) {
-      #sidePanel { width: 85px; min-width: 85px; }
+      #sidePanel { width: 80px; }
       #inventoryGrid { grid-template-columns: repeat(2, 1fr); gap: 1px; }
       .inv-slot { width: 25px; height: 25px; font-size: 10px; }
       .eq-slot { width: 25px; height: 25px; font-size: 10px; }
@@ -109,7 +109,18 @@
       #chatBox { height: 80px; font-size: 8px; }
       #chatInput { font-size: 9px; padding: 2px; }
       #chatSend { font-size: 9px; padding: 2px 4px; }
-      #minimap { width: 78px; height: 78px; }
+      #minimap { width: 70px; height: 70px; }
+    }
+
+    @media (max-width: 420px) {
+      #sidePanel { width: 70px; }
+      .inv-slot { width: 22px; height: 22px; font-size: 9px; }
+      .eq-slot { width: 22px; height: 22px; font-size: 9px; }
+      #playerBar { padding: 2px; }
+      #logoutBtn { display: none; }
+      #minimap { width: 60px; height: 60px; }
+      .tab-btn { font-size: 7px; padding: 2px 1px; }
+      #chatBox { height: 60px; font-size: 7px; }
     }
 
     /* Notification */

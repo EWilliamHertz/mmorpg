@@ -17,9 +17,18 @@ const TILE_SIZE = 32;
 function resizeCanvas() {
   const wrapper = document.getElementById('gameWrapper');
   const sidePanel = document.getElementById('sidePanel');
-  const sidePanelWidth = sidePanel.offsetWidth || 140; // fallback to 140px if not yet computed
-  canvas.width = wrapper.clientWidth - sidePanelWidth;
+  
+  // Get actual computed sidebar width (respects media queries)
+  const sidePanelWidth = sidePanel.offsetWidth || 70; // fallback to 70px on very small screens
+  
+  // Calculate available width for canvas
+  const availableWidth = wrapper.clientWidth - sidePanelWidth;
+  
+  // Set canvas dimensions
+  canvas.width = Math.max(availableWidth, 200); // minimum 200px for playability
   canvas.height = wrapper.clientHeight;
+  
+  // Update viewport dimensions
   updateViewDimensions();
 }
 
@@ -31,13 +40,19 @@ function updateViewDimensions() {
   VIEW_H = Math.floor(canvas.height / TILE_SIZE);
 }
 
-// Wait for CSS media queries to apply before resizing
+// Initial resize - wait for CSS media queries to apply
 setTimeout(() => {
   resizeCanvas();
-}, 100);
+}, 150);
 
+// Resize on window resize events
 window.addEventListener('resize', () => {
   resizeCanvas();
+});
+
+// Also resize on orientation change (important for mobile)
+window.addEventListener('orientationchange', () => {
+  setTimeout(resizeCanvas, 100);
 });
 
 // ─── Game State ───────────────────────────────────────────────────────────────
