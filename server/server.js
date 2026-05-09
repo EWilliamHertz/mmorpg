@@ -15,6 +15,9 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
+// Health check
+app.get('/', (req, res) => res.json({ status: 'RealmScape server running' }));
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
