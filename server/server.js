@@ -9,7 +9,16 @@ const cors = require('cors');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: '*', methods: ['GET', 'POST'] }
+  path: '/socket.io/',
+  transports: ['websocket', 'polling'],
+  cors: { 
+    origin: '*',
+    methods: ['GET', 'POST'],
+    credentials: true
+  },
+  allowUpgrades: true,
+  pingInterval: 25000,
+  pingTimeout: 60000
 });
 
 app.use(cors());
@@ -522,7 +531,7 @@ io.use((socket, next) => {
 });
 
 io.on('connection', async (socket) => {
-  console.log(`${socket.username} connected`);
+  console.log(`[Socket.io] Client connecting: ${socket.id}`, { transport: socket.handshake.headers.upgrade });
 
   // Load character
   const char = await loadCharacter(socket.userId, socket.username);
@@ -754,5 +763,12 @@ io.on('connection', async (socket) => {
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 initDB().then(() => {
-  server.listen(PORT, () => console.log(`RealmScape server on :${PORT}`));
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`✓ RealmScape server listening on port ${PORT}`);
+    console.log(`✓ Socket.io path: /socket.io/`);
+    console.log(`✓ Database: ${process.env.DATABASE_URL ? 'Connected' : 'FAILED'}`);
+  });
+}).catch(err => {
+  console.error('✗ Failed to start:', err);
+  process.exit(1);
 });

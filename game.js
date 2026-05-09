@@ -32,15 +32,33 @@ let activeTrade = null;
 let activeDuel = null;
 
 // ─── Socket.io ────────────────────────────────────────────────────────────────
-const socket = io(SERVER_URL, { auth: { token } });
+const socket = io(SERVER_URL, { 
+  auth: { token },
+  transports: ['websocket', 'polling'],
+  reconnection: true,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000,
+  reconnectionAttempts: 5
+});
+
+socket.on('connect', () => {
+  console.log('✓ Connected to game server');
+  showNotification('Connected!', 'success');
+});
 
 socket.on('connect_error', (err) => {
+  console.error('Socket error:', err);
   showNotification('Connection error: ' + err.message, 'error');
   if (err.message === 'Invalid token' || err.message === 'No token') {
     localStorage.removeItem('rs_token');
     localStorage.removeItem('rs_username');
     window.location.href = '/';
   }
+});
+
+socket.on('disconnect', () => {
+  console.log('Disconnected from server');
+  showNotification('Connection lost. Reconnecting...', 'warning');
 });
 
 socket.on('init', (data) => {
