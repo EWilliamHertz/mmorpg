@@ -1,7 +1,7 @@
 // RealmScape - Multiplayer Client
 // Connects to Socket.io server for real-time multiplayer
 
-const SERVER_URL = window.REALMSCAPE_SERVER || 'https://realmscape-server.onrender.com';
+const SERVER_URL = window.REALMSCAPE_SERVER || 'https://mmorpg-qnya.onrender.com';
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 const token = localStorage.getItem('rs_token');
