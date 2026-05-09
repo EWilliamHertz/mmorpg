@@ -17,19 +17,28 @@ const TILE_SIZE = 32;
 function resizeCanvas() {
   const wrapper = document.getElementById('gameWrapper');
   const sidePanel = document.getElementById('sidePanel');
-  canvas.width = wrapper.clientWidth - sidePanel.offsetWidth;
+  const sidePanelWidth = sidePanel.offsetWidth || 140; // fallback to 140px if not yet computed
+  canvas.width = wrapper.clientWidth - sidePanelWidth;
   canvas.height = wrapper.clientHeight;
+  updateViewDimensions();
 }
-resizeCanvas();
-window.addEventListener('resize', resizeCanvas);
 
-let VIEW_W = Math.floor(canvas.width / TILE_SIZE);
-let VIEW_H = Math.floor(canvas.height / TILE_SIZE);
+let VIEW_W = 0;
+let VIEW_H = 0;
 
 function updateViewDimensions() {
   VIEW_W = Math.floor(canvas.width / TILE_SIZE);
   VIEW_H = Math.floor(canvas.height / TILE_SIZE);
 }
+
+// Wait for CSS media queries to apply before resizing
+setTimeout(() => {
+  resizeCanvas();
+}, 100);
+
+window.addEventListener('resize', () => {
+  resizeCanvas();
+});
 
 // ─── Game State ───────────────────────────────────────────────────────────────
 let map = null;
